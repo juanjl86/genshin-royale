@@ -1,0 +1,163 @@
+import type { CardDef } from "./types.ts";
+
+// Deck inicial (Fase 1). Stats ajustadas a balance real para 1 carril.
+// Regla de oro: coste = valor. Una carta de 4 debe sentirse ~2x una de 2.
+// Daño por segundo (DPS) ~= damage / attackCooldown. Rango/hp compensan.
+
+export const CARDS: CardDef[] = [
+  {
+    id: "paimon",
+    name: "Paimon",
+    role: "swarm",
+    cost: 2,
+    icon: "🪽",
+    hp: 80,
+    damage: 18,
+    range: 0.6,
+    speed: 1.15,
+    attackCooldown: 0.9,
+    hitSpeed: 0.9,
+    count: 3,
+  },
+  {
+    id: "amber",
+    name: "Amber",
+    role: "ranged",
+    cost: 3,
+    icon: "🏹",
+    hp: 140,
+    damage: 32,
+    range: 5.0,
+    speed: 0.75,
+    attackCooldown: 1.2,
+    hitSpeed: 1.2,
+    count: 1,
+  },
+  {
+    id: "kaeya",
+    name: "Kaeya",
+    role: "melee",
+    cost: 4,
+    icon: "🗡️",
+    hp: 420,
+    damage: 62,
+    range: 0.8,
+    speed: 0.8,
+    attackCooldown: 1.1,
+    hitSpeed: 1.1,
+    count: 1,
+  },
+  {
+    id: "fischl",
+    name: "Fischl",
+    role: "ranged",
+    cost: 3,
+    icon: "🦉",
+    hp: 130,
+    damage: 26,
+    range: 5.5,
+    speed: 0.75,
+    attackCooldown: 1.0,
+    hitSpeed: 1.0,
+    count: 1,
+  },
+  {
+    id: "noelle",
+    name: "Noelle",
+    role: "tank",
+    cost: 5,
+    icon: "🛡️",
+    hp: 900,
+    damage: 50,
+    range: 0.8,
+    speed: 0.5,
+    attackCooldown: 1.5,
+    hitSpeed: 1.5,
+    count: 1,
+    targetBuildingsOnly: false,
+  },
+  {
+    id: "barbara",
+    name: "Barbara",
+    role: "healer",
+    cost: 3,
+    icon: "💧",
+    hp: 210,
+    damage: 0,
+    range: 3.0,
+    speed: 0.7,
+    attackCooldown: 1.0,
+    hitSpeed: 1.0,
+    count: 1,
+    healAmount: 55,
+  },
+  {
+    id: "xiangling",
+    name: "Xiangling",
+    role: "splash",
+    cost: 4,
+    icon: "🔥",
+    hp: 320,
+    damage: 52,
+    range: 2.6,
+    speed: 0.7,
+    attackCooldown: 1.3,
+    hitSpeed: 1.3,
+    count: 1,
+    splashRadius: 1.8,
+  },
+  {
+    id: "razor",
+    name: "Razor",
+    role: "melee",
+    cost: 4,
+    icon: "⚡",
+    hp: 400,
+    damage: 74,
+    range: 0.8,
+    speed: 1.05,
+    attackCooldown: 1.0,
+    hitSpeed: 1.0,
+    count: 1,
+  },
+];
+
+export const CARD_BY_ID: Record<string, CardDef> = Object.fromEntries(
+  CARDS.map((c) => [c.id, c]),
+);
+
+// --- Geometría de la arena (Fase 1, unidades lógicas) ---
+export const ARENA = {
+  cols: 18,
+  rows: 32,
+  riverY: 16, // el río corta en la fila 16
+  bridgeXs: [5, 13], // 2 carriles (puentes izquierdo y derecho)
+  playerTower: { x: 9, y: 29 }, // torre del rey del jugador (centro, abajo)
+  enemyTower: { x: 9, y: 3 }, // torre del rey del enemigo (centro, arriba)
+  // Torres princesa (2 por lado, junto a cada puente)
+  playerPrincessTowers: [
+    { x: 5, y: 24 },
+    { x: 13, y: 24 },
+  ],
+  enemyPrincessTowers: [
+    { x: 5, y: 8 },
+    { x: 13, y: 8 },
+  ],
+  playerSpawn: { x: 9, y: 25 },
+  enemySpawn: { x: 9, y: 7 },
+};
+
+export const RULES = {
+  tickRate: 20,
+  duration: 180,
+  overtime: 60,
+  elixirMax: 10,
+  elixirStart: 5,
+  elixirPerSec: 1 / 2.8,
+  doubleElixirIn: 120, // a los 120 s empieza doble elixir
+};
+
+export const TOWER_STATS = {
+  princess: { hp: 1400, range: 6.5, damage: 60, attackCooldown: 0.8 },
+  king: { hp: 2400, range: 7.0, damage: 90, attackCooldown: 1.0 },
+};

@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <title>Genshin-Royale — Prototipo</title>
+    <link rel="stylesheet" href="./src/ui/style.css" />
+  </head>
+  <body>
+    <div id="app">
+      <header id="hud">
+        <div class="side enemy">
+          <span class="label">ENEMIGO</span>
+          <span class="crowns" id="crowns-enemy">👑 0</span>
+          <div class="elixir"><div class="bar" id="elixir-enemy"></div><span id="elixir-enemy-num">0</span></div>
+        </div>
+        <div class="center">
+          <span id="timer">3:00</span>
+          <span id="phase"></span>
+        </div>
+        <div class="side player">
+          <span class="label">TÚ</span>
+          <span class="crowns" id="crowns-player">👑 0</span>
+          <div class="elixir"><div class="bar" id="elixir-player"></div><span id="elixir-player-num">0</span></div>
+        </div>
+      </header>
+
+      <div id="stage">
+        <canvas id="board"></canvas>
+        <div id="overlay">
+          <div id="banner"></div>
+          <button id="restart" hidden>Jugar otra vez</button>
+        </div>
+      </div>
+
+      <footer id="deck"></footer>
+    </div>
+    <script type="module" src="./src/main.ts"></script>
+  </body>
+</html>
