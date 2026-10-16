@@ -110,6 +110,49 @@ export function pushSpawnFx(x: number, y: number, player: number, tNow: number):
   if (spawnFx.length > 40) spawnFx.shift();
 }
 
+// --- Despiece procedural (Fase 5): cabeza/torso/piernas que se mueven por código ---
+type Part = "head" | "torso" | "legs";
+const PARTS: Part[] = ["head", "torso", "legs"];
+const partSprites: Record<string, Record<Part, HTMLImageElement>> = {};
+const partReady: Record<string, Record<Part, boolean>> = {};
+for (const id of SPRITE_IDS) {
+  partSprites[id] = {} as Record<Part, HTMLImageElement>;
+  partReady[id] = {} as Record<Part, boolean>;
+  for (const p of PARTS) {
+    const img = new Image();
+    img.src = `./sprites/parts/${id}_${p}.png`;
+    img.onload = () => { partReady[id][p] = true; };
+    partSprites[id][p] = img;
+    partReady[id][p] = false;
+  }
+}
+function hasParts(cardId: string): boolean {
+  const pr = partReady[cardId];
+  return !!pr && pr.head === true && pr.torso === true && pr.legs === true;
+}
+
+// --- Spritesheets animados (Fase 4): idle/walk1/walk2/attack ---
+type Pose = "idle" | "walk1" | "walk2" | "walk3" | "walk4" | "walk5" | "walk6" | "attack";
+const POSES: Pose[] = ["idle", "walk1", "walk2", "walk3", "walk4", "walk5", "walk6", "attack"];
+const animSprites: Record<string, Record<Pose, HTMLImageElement>> = {};
+const animReady: Record<string, Record<Pose, boolean>> = {};
+for (const id of SPRITE_IDS) {
+  animSprites[id] = {} as Record<Pose, HTMLImageElement>;
+  animReady[id] = {} as Record<Pose, boolean>;
+  for (const p of POSES) {
+    const img = new Image();
+    img.src = `./sprites/frames/${id}_${p}_256.png`;
+    img.onload = () => {
+      animReady[id][p] = true;
+    };
+    animSprites[id][p] = img;
+    animReady[id][p] = false;
+  }
+}
+function hasAnim(cardId: string): boolean {
+  return !!animReady[cardId] && animReady[cardId].idle === true && animReady[cardId].walk1 === true;
+}
+
 // --- Animación de unidades (Fase 3, Bloque C + D) ---
 // Cada unidad "respira" (bob) según su id y el tiempo; al atacar da un empujón.
 const attackFlash = new Map<number, number>(); // unitId -> instante (elapsed) del último ataque
@@ -143,6 +186,33 @@ function hurtAmount(unitId: number, tNow: number): number {
 
 // Seguimiento de movimiento: inferimos si la unidad se mueve comparando posiciones.
 const lastPos = new Map<number, { x: number; y: number; t: number }>();
+// Distancia acumulada de "zancada" por unidad (sincroniza el ciclo de pies).
+const strideAcc = new Map<number, number>();
+
+/** Fase 0..1 dentro de la zancada actual (sube de 0 a 1 por cada paso). */
+function stridePhaseOf(u: { id: number; pos: { x: number; y: number } }, tNow: number): number {
+  const prev = lastPos.get(u.id);
+  if (!prev) return 0;
+  const dx = u.pos.x - prev.x;
+  const dy = u.pos.y - prev.y;
+  const d = Math.sqrt(dx * dx + dy * dy);
+  const acc = (strideAcc.get(u.id) ?? 0) + d;
+  strideAcc.set(u.id, acc);
+  return acc % 1;
+}
+
+/** 0 o 1: qué pie va adelante, según la zancada acumulada. */
+function strideOf(u: { id: number; pos: { x: number; y: number } }, tNow: number): number {
+  return Math.floor((strideAcc.get(u.id) ?? 0)) % 2;
+}
+
+/** Frame 0..5 dentro del ciclo de 6 pasos (zancada larga). */
+function strideFrameOf(u: { id: number; pos: { x: number; y: number } }, tNow: number): number {
+  // Una zancada completa = 1.0 de distancia acumulada repartida en 6 frames.
+  const acc = strideAcc.get(u.id) ?? 0;
+  return Math.floor(acc * 6) % 6;
+}
+
 interface MoveInfo {
   moving: boolean;
   dirX: number; // -1..1 hacia d\u00f3nde se mueve
@@ -308,8 +378,73 @@ export function draw(ctx: CanvasRenderingContext2D, world: World, vp: Viewport, 
     if (!u.alive) continue;
     const { px, py } = cellToPx(vp, u.pos.x, u.pos.y);
     const r = scale * (u.role === "tank" ? 0.85 : u.role === "swarm" ? 0.55 : 0.7);
-    const img = sprites[u.cardId];
-    if (img && spriteReady[u.cardId]) {
+    const anim = animSprites[u.cardId];
+    if (anim && hasAnim(u.cardId)) {
+      const mv = movementOf(u, world.elapsed);
+      const ap = attackPhase(u.id, world.elapsed);
+      const hurt = hurtAmount(u.id, world.elapsed);
+
+      // --- Selección de fotograma (Fase 4, v2) ---
+      // atacando -> attack; caminando -> ciclo walk1/walk2 SINCRONIZADO con la distancia
+      // recorrida (los pies "tocan el suelo" al ritmo del avance, no por tiempo suelto).
+      let pose: Pose;
+      if (ap > 0) {
+        pose = "attack";
+      } else if (mv.moving) {
+        const frame = strideFrameOf(u, world.elapsed); // 0..5
+        pose = ("walk" + (frame + 1)) as Pose;
+      } else {
+        pose = "idle";
+      }
+      const img = anim[pose];
+
+      // --- Animación procedural encima del sprite ---
+      // Bob muy sutil (solo en el paso pegado al suelo, no salto).
+      const walkSpeed = Math.min(1, mv.speed / 1.1);
+      const stepT = stridePhaseOf(u, world.elapsed); // 0..1 dentro del paso
+      const bobAmp = scale * (0.02 + walkSpeed * 0.05);
+      const bob = mv.moving ? Math.abs(Math.sin(stepT * Math.PI)) * bobAmp - bobAmp * 0.5 : 0;
+      const pop = Math.sin(ap * Math.PI) * scale * 0.26;
+      const dySpr = -bob - pop;
+      const lean = mv.dirX * walkSpeed * 0.10;
+      // Squash & stretch al atacar
+      const sy = 1 + Math.sin(ap * Math.PI) * 0.10;
+      const sx = 1 - Math.sin(ap * Math.PI) * 0.06;
+      // Volteo según dirección horizontal (sprite base mira a la derecha)
+      const flip = mv.moving && mv.dirX < -0.05 ? -1 : 1;
+
+      // Sombra en el suelo
+      const airLift = Math.max(0, -dySpr) / (scale * 0.5);
+      const shadowScale = Math.max(0.55, 1 - airLift * 0.35);
+      ctx.fillStyle = "rgba(0,0,0,0.28)";
+      ctx.beginPath();
+      ctx.ellipse(px, py + r * 0.85, r * 0.72 * shadowScale, r * 0.28 * shadowScale, 0, 0, Math.PI * 2);
+      ctx.fill();
+      // Halo del bando
+      ctx.fillStyle = u.player === 0 ? "rgba(192,69,95,0.85)" : "rgba(63,111,192,0.85)";
+      ctx.beginPath();
+      ctx.arc(px, py + r * 0.85, r * 0.16, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Sprite
+      ctx.save();
+      ctx.translate(px, py + r * 0.85 + dySpr);
+      ctx.scale(flip, 1);
+      ctx.rotate(lean * flip);
+      const dh = r * 2.6 * sy;
+      const dw = dh * (img.width / img.height) * (1 / sy) * sx;
+      ctx.drawImage(img, -dw / 2, -dh, dw, dh);
+      if (hurt > 0) {
+        ctx.globalAlpha = hurt * 0.55;
+        ctx.globalCompositeOperation = "source-atop";
+        ctx.fillStyle = "#ff3b3b";
+        ctx.fillRect(-dw / 2, -dh, dw, dh);
+        ctx.globalCompositeOperation = "source-over";
+        ctx.globalAlpha = 1;
+      }
+      ctx.restore();
+    } else if (sprites[u.cardId] && spriteReady[u.cardId]) {
+      const img = sprites[u.cardId];
       const mv = movementOf(u, world.elapsed);
       const ap = attackPhase(u.id, world.elapsed);
       const hurt = hurtAmount(u.id, world.elapsed);
