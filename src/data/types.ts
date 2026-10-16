@@ -85,6 +85,8 @@ export interface World {
 export type SimEvent =
   | { kind: "spawn"; unitId: number; cardId: string; player: PlayerId }
   | { kind: "death"; unitId: number; player: PlayerId }
+  | { kind: "hit"; x: number; y: number; amount: number; player: PlayerId }
+  | { kind: "heal"; x: number; y: number; amount: number; player: PlayerId }
   | { kind: "tower-damaged"; towerId: number; player: PlayerId; amount: number }
   | { kind: "tower-destroyed"; towerId: number; player: PlayerId }
   | { kind: "crown"; player: PlayerId; total: number }

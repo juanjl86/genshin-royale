@@ -220,6 +220,7 @@ function updateUnit(world: World, u: Unit, dt: number): void {
         u.attackTimer -= dt;
         if (u.attackTimer <= 0) {
           a.hp = Math.min(a.maxHp, a.hp + u.healAmount);
+          world.events.push({ kind: "heal", x: a.pos.x, y: a.pos.y, amount: u.healAmount, player: u.player });
           u.attackTimer = u.attackCooldown;
         }
         healed = true;
@@ -258,10 +259,14 @@ function moveToward(u: Unit, target: Vec2, dt: number): void {
 function dealDamage(world: World, attacker: Unit, targetUnit: Unit | null, targetTower: Tower | null): void {
   if (targetUnit && targetUnit.alive) {
     targetUnit.hp -= attacker.damage;
+    world.events.push({ kind: "hit", x: targetUnit.pos.x, y: targetUnit.pos.y, amount: attacker.damage, player: attacker.player });
     if (attacker.splashRadius > 0) {
       for (const e of world.units) {
         if (e === targetUnit || e.player === attacker.player || !e.alive) continue;
-        if (dist(e.pos, targetUnit.pos) <= attacker.splashRadius) e.hp -= attacker.damage * 0.6;
+        if (dist(e.pos, targetUnit.pos) <= attacker.splashRadius) {
+          e.hp -= attacker.damage * 0.6;
+          world.events.push({ kind: "hit", x: e.pos.x, y: e.pos.y, amount: attacker.damage * 0.6, player: attacker.player });
+        }
       }
     }
     if (targetUnit.hp <= 0) {
@@ -299,6 +304,7 @@ function updateTower(world: World, t: Tower, dt: number): void {
   if (t.attackTimer <= 0) {
     t.attackTimer = t.attackCooldown;
     target.hp -= t.damage;
+    world.events.push({ kind: "hit", x: target.pos.x, y: target.pos.y, amount: t.damage, player: t.player });
     if (target.hp <= 0) {
       target.alive = false;
       world.events.push({ kind: "death", unitId: target.id, player: target.player });

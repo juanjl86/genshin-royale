@@ -2,7 +2,7 @@ import type { Command, World } from "./data/types.ts";
 import { RULES } from "./data/cards.ts";
 import { applyCommand, createWorld, stepWorld } from "./sim/world.ts";
 import { aiThink, createAiState } from "./sim/ai.ts";
-import { computeViewport, draw } from "./render/renderer.ts";
+import { computeViewport, draw, pushSpawnFx, pushHitFx, pushHealFx, pushDeathFx, notifyAttack, notifyHurt } from "./render/renderer.ts";
 import type { Viewport } from "./render/renderer.ts";
 import { bindBoard, createInputState, renderDeck } from "./input/input.ts";
 
@@ -73,6 +73,7 @@ function loop(now: number): void {
   acc += frame;
 
   while (acc >= FIXED_MS) {
+    world.events.length = 0;
     // Comandos del jugador
     while (pending.length > 0) {
       applyCommand(world, pending.shift() as Command);
@@ -82,6 +83,32 @@ function loop(now: number): void {
     if (aiCmd) applyCommand(world, aiCmd);
 
     stepWorld(world);
+
+    // Efectos (Fase 3): invocación (Bloque A) y combate (Bloque B)
+    for (const ev of world.events) {
+      if (ev.kind === "spawn") {
+        const u = world.units.find((x) => x.id === ev.unitId);
+        if (u) pushSpawnFx(u.pos.x, u.pos.y, ev.player, world.elapsed);
+      } else if (ev.kind === "hit") {
+        pushHitFx(ev.x, ev.y, ev.amount, world.elapsed);
+        // parpadeo rojo en la unidad golpeada (buscar por posición cercana)
+        let nearest: number | null = null;
+        let nd = 0.6;
+        for (const uu of world.units) {
+          const d = Math.hypot(uu.pos.x - ev.x, uu.pos.y - ev.y);
+          if (d < nd) { nd = d; nearest = uu.id; }
+        }
+        if (nearest !== null) notifyHurt(nearest, world.elapsed);
+      } else if (ev.kind === "heal") {
+        pushHealFx(ev.x, ev.y, ev.amount, world.elapsed);
+      } else if (ev.kind === "tower-damaged") {
+        const t = world.towers.find((x) => x.id === ev.towerId);
+        if (t) pushHitFx(t.pos.x, t.pos.y, ev.amount, world.elapsed, true);
+      } else if (ev.kind === "death") {
+        const u = world.units.find((x) => x.id === ev.unitId);
+        if (u) pushDeathFx(u.pos.x, u.pos.y, u.player, world.elapsed);
+      }
+    }
     acc -= FIXED_MS;
   }
 
